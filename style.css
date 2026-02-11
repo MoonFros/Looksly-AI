@@ -79,3 +79,33 @@ img {
     object-fit: contain; /* Shrinks the face to fit perfectly without cropping */
     background-color: #16161a;
 }
+/* Styling for the fashion page specifically */
+.tag {
+    background: #ff00ff;
+    color: white;
+    font-size: 0.8rem;
+    padding: 2px 8px;
+    border-radius: 5px;
+    vertical-align: middle;
+}
+
+.rating-display {
+    background: rgba(255, 255, 255, 0.05);
+    padding: 20px;
+    border-radius: 15px;
+    margin-top: 20px;
+    border: 1px solid #ff00ff;
+}
+
+#fitScore {
+    font-size: 4rem;
+    margin: 0;
+    color: #ff00ff;
+    text-shadow: 0 0 10px rgba(255, 0, 255, 0.5);
+}
+
+#slangComment {
+    font-style: italic;
+    font-size: 1.2rem;
+    color: #fff;
+}
