@@ -5,10 +5,11 @@
     <title>AI Fit Check | Rate My Drip</title>
     <link rel="stylesheet" href="style.css">
 </head>
+
 <body>
 <div class="container fashion-page">
     <h1>Fit Check AI <span class="tag">Gen Z Mode</span></h1>
-    <p id="status">Upload your fit for a vibe check.</p>
+    <p id="status">Upload your outfit for AI-assisted analysis.</p>
 
     <div class="upload-zone">
         <input type="file" id="fashionUpload" accept="image/*" hidden>
@@ -22,6 +23,7 @@
     <div id="fashionResults" style="display:none;">
         <div class="rating-display">
             <h2 id="fitScore">0/10</h2>
+            <p id="styleLabel"></p>
             <p id="slangComment"></p>
         </div>
         <button onclick="location.href='index.html'" class="btn-secondary">
@@ -31,72 +33,78 @@
 </div>
 
 <script>
+const BACKEND_URL = "https://YOUR_RENDER_BACKEND_URL/analyze";
+
 const fashionUpload = document.getElementById("fashionUpload");
 const slangComment = document.getElementById("slangComment");
 const fitScore = document.getElementById("fitScore");
 const status = document.getElementById("status");
+const styleLabel = document.getElementById("styleLabel");
 
-/* -------------------- HUGGING FACE CALL -------------------- */
+/* -------------------- AI CALL -------------------- */
 async function analyzeWithHuggingFace(file) {
     const formData = new FormData();
     formData.append("file", file);
 
     try {
-        const res = await fetch("http://localhost:5000/analyze", {
+        const res = await fetch(BACKEND_URL, {
             method: "POST",
             body: formData
         });
 
-        if (!res.ok) return null;
+        if (!res.ok) throw new Error("AI failed");
         return await res.json();
-    } catch {
+    } catch (err) {
+        console.warn("AI unavailable, using fallback logic");
         return null;
     }
 }
 
-/* -------------------- IMAGE UPLOAD -------------------- */
+/* -------------------- UPLOAD HANDLER -------------------- */
 fashionUpload.addEventListener("change", (e) => {
     const file = e.target.files[0];
     if (!file) return;
 
     const reader = new FileReader();
-    status.innerText = "Uploading fit to AI...";
+    status.innerText = "Uploading image...";
 
     reader.onload = async (event) => {
         const img = new Image();
         img.src = event.target.result;
 
         img.onload = async () => {
-            // Show image
-            const displayImg = document.getElementById("outfitImg");
-            displayImg.src = img.src;
-            displayImg.style.display = "block";
+            document.getElementById("outfitImg").src = img.src;
+            document.getElementById("outfitImg").style.display = "block";
 
-            status.innerText = "AI analyzing drip...";
+            status.innerText = "Analyzing outfit composition...";
 
-            /* ---------- COLOR + TEXTURE ---------- */
             const color = getAverageRGB(img);
-            const colorVibe = getColorVibe(color.r, color.g, color.b);
+            const vibe = getColorVibe(color.r, color.g, color.b);
 
-            /* ---------- HUGGING FACE ---------- */
+            status.innerText = "Consulting AI stylist...";
             const hfData = await analyzeWithHuggingFace(file);
             const tags = hfData ? hfData.map(x => x.label.toLowerCase()) : [];
 
-            /* ---------- SCORING ---------- */
+            /* -------- SCORE -------- */
             let score = 5;
-
             if (tags.includes("jacket")) score += 2;
             if (tags.includes("sneakers")) score += 2;
-            if (tags.includes("shirt") || tags.includes("jeans")) score += 1;
             if (tags.length >= 3) score += 1;
 
-            score += colorVibe.score - 5;
+            score += vibe.score - 5;
             score = Math.max(1, Math.min(10, score));
+
+            /* -------- STYLE LABEL -------- */
+            let style = "Casual Clean";
+            if (vibe.score >= 8 && color.r < 80) style = "Streetwear Core";
+            else if (vibe.score >= 7 && color.r > color.b) style = "Minimal / Old Money";
+            else if (vibe.score >= 8) style = "Statement Fit";
 
             setTimeout(() => {
                 fitScore.innerText = `${score}/10`;
+                styleLabel.innerText = `Style: ${style}`;
                 slangComment.innerText =
-                    `Detected: ${tags.join(", ") || "clean essentials"} — ${colorVibe.comment}`;
+                    `${hfData ? "AI-assisted analysis" : "Visual analysis"} — ${vibe.comment}`;
 
                 document.querySelector(".rating-display").style.borderColor =
                     `rgb(${color.r},${color.g},${color.b})`;
@@ -109,7 +117,7 @@ fashionUpload.addEventListener("change", (e) => {
     reader.readAsDataURL(file);
 });
 
-/* -------------------- COLOR ANALYSIS -------------------- */
+/* -------------------- COLOR LOGIC -------------------- */
 function getAverageRGB(imgEl) {
     const canvas = document.createElement("canvas");
     const ctx = canvas.getContext("2d");
@@ -122,30 +130,23 @@ function getAverageRGB(imgEl) {
 
     for (let i = 0; i < data.length; i += 4) {
         r += data[i];
-        g += data[i + 1];
-        b += data[i + 2];
+        g += data[i+1];
+        b += data[i+2];
     }
 
     const pixels = data.length / 4;
-    return {
-        r: Math.floor(r / pixels),
-        g: Math.floor(g / pixels),
-        b: Math.floor(b / pixels)
-    };
+    return { r: r/pixels, g: g/pixels, b: b/pixels };
 }
 
-/* -------------------- VIBE LOGIC -------------------- */
+/* -------------------- VIBE -------------------- */
 function getColorVibe(r, g, b) {
-    if (r < 60 && g < 60 && b < 60) {
+    if (r < 60 && g < 60 && b < 60)
         return { score: 9, comment: "Dark palette, heavy aura. Street-certified." };
-    }
-    if (r > 200 || g > 200 || b > 200) {
-        return { score: 8, comment: "Bright fit, loud confidence. Main character coded." };
-    }
-    if (r > g && g > b) {
-        return { score: 7, comment: "Earth tones, tasteful calm. Quiet flex." };
-    }
-    return { score: 6, comment: "Clean and balanced. Solid everyday drip." };
+    if (r > 200 || g > 200 || b > 200)
+        return { score: 8, comment: "Bright tones, confident presence." };
+    if (r > g && g > b)
+        return { score: 7, comment: "Earth tones, understated elegance." };
+    return { score: 6, comment: "Balanced, clean, everyday drip." };
 }
 </script>
 </body>
