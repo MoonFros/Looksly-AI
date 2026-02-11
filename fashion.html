@@ -4,111 +4,149 @@
     <meta charset="UTF-8">
     <title>AI Fit Check | Rate My Drip</title>
     <link rel="stylesheet" href="style.css">
-    
 </head>
 <body>
-    <div class="container fashion-page">
-        <h1>Fit Check AI <span class="tag">Gen Z Mode</span></h1>
-        <p id="status">Upload your fit for a vibe check.</p>
+<div class="container fashion-page">
+    <h1>Fit Check AI <span class="tag">Gen Z Mode</span></h1>
+    <p id="status">Upload your fit for a vibe check.</p>
 
-        <div class="upload-zone">
-            <input type="file" id="fashionUpload" accept="image/*" hidden>
-            <label for="fashionUpload" class="btn-primary">Post to AI</label>
-        </div>
-
-        <div id="fashionPreview" class="preview-box">
-            <img id="outfitImg" style="display:none; width: 100%; border-radius: 15px;">
-        </div>
-
-        <div id="fashionResults" style="display:none;">
-            <div class="rating-display">
-                <h2 id="fitScore">0/10</h2>
-                <p id="slangComment"></p>
-            </div>
-            <button onclick="location.href='index.html'" class="btn-secondary">Back to Face Scan</button>
-        </div>
+    <div class="upload-zone">
+        <input type="file" id="fashionUpload" accept="image/*" hidden>
+        <label for="fashionUpload" class="btn-primary">Post to AI</label>
     </div>
 
-    <script>
-        const fashionUpload = document.getElementById('fashionUpload');
-const slangComment = document.getElementById('slangComment');
-const fitScore = document.getElementById('fitScore');
-const status = document.getElementById('status');
+    <div id="fashionPreview" class="preview-box">
+        <img id="outfitImg" style="display:none; width:100%; border-radius:15px;">
+    </div>
 
-fashionUpload.addEventListener('change', (e) => {
+    <div id="fashionResults" style="display:none;">
+        <div class="rating-display">
+            <h2 id="fitScore">0/10</h2>
+            <p id="slangComment"></p>
+        </div>
+        <button onclick="location.href='index.html'" class="btn-secondary">
+            Back to Face Scan
+        </button>
+    </div>
+</div>
+
+<script>
+const fashionUpload = document.getElementById("fashionUpload");
+const slangComment = document.getElementById("slangComment");
+const fitScore = document.getElementById("fitScore");
+const status = document.getElementById("status");
+
+/* -------------------- HUGGING FACE CALL -------------------- */
+async function analyzeWithHuggingFace(file) {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    try {
+        const res = await fetch("http://localhost:5000/analyze", {
+            method: "POST",
+            body: formData
+        });
+
+        if (!res.ok) return null;
+        return await res.json();
+    } catch {
+        return null;
+    }
+}
+
+/* -------------------- IMAGE UPLOAD -------------------- */
+fashionUpload.addEventListener("change", (e) => {
     const file = e.target.files[0];
-    const reader = new FileReader();
-    
-    status.innerText = "Extracting color palette...";
+    if (!file) return;
 
-    reader.onload = (event) => {
+    const reader = new FileReader();
+    status.innerText = "Uploading fit to AI...";
+
+    reader.onload = async (event) => {
         const img = new Image();
         img.src = event.target.result;
-        
-        img.onload = () => {
-            // Display the image
-            const displayImg = document.getElementById('outfitImg');
+
+        img.onload = async () => {
+            // Show image
+            const displayImg = document.getElementById("outfitImg");
             displayImg.src = img.src;
-            displayImg.style.display = 'block';
+            displayImg.style.display = "block";
 
-            // ANALYZE COLORS
+            status.innerText = "AI analyzing drip...";
+
+            /* ---------- COLOR + TEXTURE ---------- */
             const color = getAverageRGB(img);
-            const vibe = getColorVibe(color.r, color.g, color.b);
+            const colorVibe = getColorVibe(color.r, color.g, color.b);
 
-            // AI Processing Delay for effect
+            /* ---------- HUGGING FACE ---------- */
+            const hfData = await analyzeWithHuggingFace(file);
+            const tags = hfData ? hfData.map(x => x.label.toLowerCase()) : [];
+
+            /* ---------- SCORING ---------- */
+            let score = 5;
+
+            if (tags.includes("jacket")) score += 2;
+            if (tags.includes("sneakers")) score += 2;
+            if (tags.includes("shirt") || tags.includes("jeans")) score += 1;
+            if (tags.length >= 3) score += 1;
+
+            score += colorVibe.score - 5;
+            score = Math.max(1, Math.min(10, score));
+
             setTimeout(() => {
-                fitScore.innerText = `${vibe.score}/10`;
-                slangComment.innerText = vibe.comment;
-                
-                // Change the border color to match your clothes!
-                document.querySelector('.rating-display').style.borderColor = `rgb(${color.r},${color.g},${color.b})`;
-                
-                document.getElementById('fashionResults').style.display = 'block';
-                status.innerText = "Vibe Check Complete.";
-            }, 1500);
+                fitScore.innerText = `${score}/10`;
+                slangComment.innerText =
+                    `Detected: ${tags.join(", ") || "clean essentials"} — ${colorVibe.comment}`;
+
+                document.querySelector(".rating-display").style.borderColor =
+                    `rgb(${color.r},${color.g},${color.b})`;
+
+                document.getElementById("fashionResults").style.display = "block";
+                status.innerText = "Vibe check complete.";
+            }, 1200);
         };
     };
     reader.readAsDataURL(file);
 });
 
-// Function to "see" the colors in the photo
+/* -------------------- COLOR ANALYSIS -------------------- */
 function getAverageRGB(imgEl) {
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
-    canvas.width = 50; // Small scale for speed
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
+    canvas.width = 50;
     canvas.height = 50;
     ctx.drawImage(imgEl, 0, 0, 50, 50);
-    
+
     const data = ctx.getImageData(0, 0, 50, 50).data;
     let r = 0, g = 0, b = 0;
 
     for (let i = 0; i < data.length; i += 4) {
         r += data[i];
-        g += data[i+1];
-        b += data[i+2];
+        g += data[i + 1];
+        b += data[i + 2];
     }
 
     const pixels = data.length / 4;
-    return { r: Math.floor(r/pixels), g: Math.floor(g/pixels), b: Math.floor(b/pixels) };
+    return {
+        r: Math.floor(r / pixels),
+        g: Math.floor(g / pixels),
+        b: Math.floor(b / pixels)
+    };
 }
 
-// Logic to turn colors into Gen Z comments
+/* -------------------- VIBE LOGIC -------------------- */
 function getColorVibe(r, g, b) {
-    // Detect "Dark/Emo" vibes
     if (r < 60 && g < 60 && b < 60) {
-        return { score: 9, comment: "Giving 'Streetwear Shadow' vibes. Very opium, very clean. 🖤" };
+        return { score: 9, comment: "Dark palette, heavy aura. Street-certified." };
     }
-    // Detect "Bright/Neon" vibes
     if (r > 200 || g > 200 || b > 200) {
-        return { score: 8, comment: "Main character energy with these colors. You're literally glowing. ✨" };
+        return { score: 8, comment: "Bright fit, loud confidence. Main character coded." };
     }
-    // Detect "Earth Tones" (Browns/Greens)
     if (r > g && g > b) {
-        return { score: 7, comment: "The aesthetic is very 'Old Money' or 'Granola Core'. Respect. 🌿" };
+        return { score: 7, comment: "Earth tones, tasteful calm. Quiet flex." };
     }
-    // Default
-    return { score: 6, comment: "A solid basic fit. It's giving clean girl/boy aesthetic. Minimalist win. ☁️" };
+    return { score: 6, comment: "Clean and balanced. Solid everyday drip." };
 }
-    </script>
+</script>
 </body>
 </html>
