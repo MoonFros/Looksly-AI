@@ -1,48 +1,46 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <title>AI Fit Check | Rate My Drip</title>
-    <link rel="stylesheet" href="style.css">
+<meta charset="UTF-8">
+<title>Fit Check AI | Vibe Analysis</title>
+<link rel="stylesheet" href="style.css">
 </head>
 
 <body>
 <div class="container fashion-page">
-    <h1>Fit Check AI <span class="tag">Gen Z Mode</span></h1>
+    <h1>Fit Check AI <span class="tag">v2</span></h1>
     <p id="status">Upload your outfit for AI-assisted analysis.</p>
 
     <div class="upload-zone">
-        <input type="file" id="fashionUpload" accept="image/*" hidden>
-        <label for="fashionUpload" class="btn-primary">Post to AI</label>
+        <input type="file" id="fitA" accept="image/*" hidden>
+        <label for="fitA" class="btn-primary">Upload Fit A</label>
+
+        <input type="file" id="fitB" accept="image/*" hidden>
+        <label for="fitB" class="btn-secondary">Upload Fit B (Optional)</label>
     </div>
 
-    <div id="fashionPreview" class="preview-box">
-        <img id="outfitImg" style="display:none; width:100%; border-radius:15px;">
+    <div class="preview-box">
+        <img id="imgA" style="display:none;">
+        <img id="imgB" style="display:none;">
     </div>
 
-    <div id="fashionResults" style="display:none;">
+    <div id="results" style="display:none;">
         <div class="rating-display">
-            <h2 id="fitScore">0/10</h2>
-            <p id="styleLabel"></p>
-            <p id="slangComment"></p>
+            <h2 id="score">0/10</h2>
+            <p id="style"></p>
+            <p id="caption"></p>
+            <ul id="tips"></ul>
+            <p id="comparison"></p>
         </div>
-        <button onclick="location.href='index.html'" class="btn-secondary">
-            Back to Face Scan
-        </button>
     </div>
 </div>
 
 <script>
-const BACKEND_URL = "https://YOUR_RENDER_BACKEND_URL/analyze";
+const BACKEND_URL = "https://looksly.vercel.app/api/analyze";
 
-const fashionUpload = document.getElementById("fashionUpload");
-const slangComment = document.getElementById("slangComment");
-const fitScore = document.getElementById("fitScore");
-const status = document.getElementById("status");
-const styleLabel = document.getElementById("styleLabel");
+let fitData = {};
 
-/* -------------------- AI CALL -------------------- */
-async function analyzeWithHuggingFace(file) {
+async function analyzeAI(file) {
     const formData = new FormData();
     formData.append("file", file);
 
@@ -51,102 +49,130 @@ async function analyzeWithHuggingFace(file) {
             method: "POST",
             body: formData
         });
-
-        if (!res.ok) throw new Error("AI failed");
+        if (!res.ok) throw new Error();
         return await res.json();
-    } catch (err) {
-        console.warn("AI unavailable, using fallback logic");
+    } catch {
         return null;
     }
 }
 
-/* -------------------- UPLOAD HANDLER -------------------- */
-fashionUpload.addEventListener("change", (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
+function analyzeImage(img, tags = []) {
+    const color = getAverageRGB(img);
+    const vibe = getColorVibe(color);
 
+    let score = vibe.score;
+    if (tags.length >= 3) score += 1;
+    score = Math.min(10, Math.max(1, score));
+
+    const style = getStyle(vibe, color);
+    const tips = getTips(vibe, tags);
+    const caption = getCaption(style, score);
+
+    return { score, style, tips, caption };
+}
+
+/* -------- UPLOAD HANDLERS -------- */
+document.getElementById("fitA").addEventListener("change", async e => {
+    await handleFit(e.target.files[0], "A");
+});
+document.getElementById("fitB").addEventListener("change", async e => {
+    await handleFit(e.target.files[0], "B");
+});
+
+async function handleFit(file, label) {
     const reader = new FileReader();
-    status.innerText = "Uploading image...";
-
-    reader.onload = async (event) => {
+    reader.onload = async e => {
         const img = new Image();
-        img.src = event.target.result;
-
+        img.src = e.target.result;
         img.onload = async () => {
-            document.getElementById("outfitImg").src = img.src;
-            document.getElementById("outfitImg").style.display = "block";
+            document.getElementById("img"+label).src = img.src;
+            document.getElementById("img"+label).style.display = "block";
 
-            status.innerText = "Analyzing outfit composition...";
+            const ai = await analyzeAI(file);
+            const tags = ai ? ai.map(x => x.label.toLowerCase()) : [];
 
-            const color = getAverageRGB(img);
-            const vibe = getColorVibe(color.r, color.g, color.b);
+            fitData[label] = analyzeImage(img, tags);
 
-            status.innerText = "Consulting AI stylist...";
-            const hfData = await analyzeWithHuggingFace(file);
-            const tags = hfData ? hfData.map(x => x.label.toLowerCase()) : [];
-
-            /* -------- SCORE -------- */
-            let score = 5;
-            if (tags.includes("jacket")) score += 2;
-            if (tags.includes("sneakers")) score += 2;
-            if (tags.length >= 3) score += 1;
-
-            score += vibe.score - 5;
-            score = Math.max(1, Math.min(10, score));
-
-            /* -------- STYLE LABEL -------- */
-            let style = "Casual Clean";
-            if (vibe.score >= 8 && color.r < 80) style = "Streetwear Core";
-            else if (vibe.score >= 7 && color.r > color.b) style = "Minimal / Old Money";
-            else if (vibe.score >= 8) style = "Statement Fit";
-
-            setTimeout(() => {
-                fitScore.innerText = `${score}/10`;
-                styleLabel.innerText = `Style: ${style}`;
-                slangComment.innerText =
-                    `${hfData ? "AI-assisted analysis" : "Visual analysis"} — ${vibe.comment}`;
-
-                document.querySelector(".rating-display").style.borderColor =
-                    `rgb(${color.r},${color.g},${color.b})`;
-
-                document.getElementById("fashionResults").style.display = "block";
-                status.innerText = "Vibe check complete.";
-            }, 1200);
+            if (fitData.A) renderResults();
         };
     };
     reader.readAsDataURL(file);
-});
-
-/* -------------------- COLOR LOGIC -------------------- */
-function getAverageRGB(imgEl) {
-    const canvas = document.createElement("canvas");
-    const ctx = canvas.getContext("2d");
-    canvas.width = 50;
-    canvas.height = 50;
-    ctx.drawImage(imgEl, 0, 0, 50, 50);
-
-    const data = ctx.getImageData(0, 0, 50, 50).data;
-    let r = 0, g = 0, b = 0;
-
-    for (let i = 0; i < data.length; i += 4) {
-        r += data[i];
-        g += data[i+1];
-        b += data[i+2];
-    }
-
-    const pixels = data.length / 4;
-    return { r: r/pixels, g: g/pixels, b: b/pixels };
 }
 
-/* -------------------- VIBE -------------------- */
-function getColorVibe(r, g, b) {
-    if (r < 60 && g < 60 && b < 60)
-        return { score: 9, comment: "Dark palette, heavy aura. Street-certified." };
-    if (r > 200 || g > 200 || b > 200)
-        return { score: 8, comment: "Bright tones, confident presence." };
-    if (r > g && g > b)
-        return { score: 7, comment: "Earth tones, understated elegance." };
-    return { score: 6, comment: "Balanced, clean, everyday drip." };
+function renderResults() {
+    const A = fitData.A;
+    const B = fitData.B;
+
+    document.getElementById("score").innerText = `${A.score}/10`;
+    document.getElementById("style").innerText = `Style: ${A.style}`;
+    document.getElementById("caption").innerText = `"${A.caption}"`;
+
+    const tipsEl = document.getElementById("tips");
+    tipsEl.innerHTML = "";
+    A.tips.forEach(t => {
+        const li = document.createElement("li");
+        li.innerText = t;
+        tipsEl.appendChild(li);
+    });
+
+    if (B) {
+        document.getElementById("comparison").innerText =
+            A.score >= B.score
+            ? "Fit A wins. Cleaner execution and stronger presence."
+            : "Fit B wins. Better balance and styling choices.";
+    }
+
+    document.getElementById("results").style.display = "block";
+}
+
+/* -------- STYLE LOGIC -------- */
+function getStyle(vibe, color) {
+    if (vibe.score >= 8 && color.dark) return "Streetwear Core";
+    if (vibe.score >= 8) return "Statement Fit";
+    if (color.earthy) return "Minimal / Old Money";
+    return "Casual Clean";
+}
+
+function getTips(vibe, tags) {
+    const tips = [];
+    if (vibe.score < 7) tips.push("Increase contrast to elevate the fit.");
+    if (!tags.includes("jacket")) tips.push("Layering could add depth.");
+    if (tags.length < 2) tips.push("Consider mixing textures or pieces.");
+    return tips.length ? tips : ["Well-balanced outfit. No major changes needed."];
+}
+
+function getCaption(style, score) {
+    const captions = {
+        "Streetwear Core": ["Dark tones, louder confidence.", "Street energy activated."],
+        "Statement Fit": ["Main character energy unlocked.", "Not subtle. Intentional."],
+        "Minimal / Old Money": ["Quiet flex, loud taste.", "Clean lines, calm confidence."],
+        "Casual Clean": ["Effortless and put together.", "Simple done right."]
+    };
+    return captions[style][score % captions[style].length];
+}
+
+/* -------- COLOR -------- */
+function getAverageRGB(img) {
+    const c = document.createElement("canvas");
+    const x = c.getContext("2d");
+    c.width = c.height = 50;
+    x.drawImage(img,0,0,50,50);
+    const d = x.getImageData(0,0,50,50).data;
+    let r=0,g=0,b=0;
+    for(let i=0;i<d.length;i+=4){r+=d[i];g+=d[i+1];b+=d[i+2];}
+    r/=2500; g/=2500; b/=2500;
+    return {
+        r,g,b,
+        dark: r<80 && g<80 && b<80,
+        earthy: r>g && g>b
+    };
+}
+
+function getColorVibe(color) {
+    if (color.dark) return { score: 9 };
+    if (color.r>200 || color.g>200 || color.b>200) return { score: 8 };
+    if (color.earthy) return { score: 7 };
+    return { score: 6 };
 }
 </script>
 </body>
