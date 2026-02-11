@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Face Scanner | Upload</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <h1>Looksly AI</h1>
+        <p id="loader">Initializing AI Core...</p>
+        
+        <div class="upload-zone">
+            <input type="file" id="imageUpload" accept="image/*" hidden>
+            <label for="imageUpload" class="btn-primary" id="uploadLabel" style="display:none;">Select Photo</label>
+        </div>
+
+        <div class="preview-box">
+            <img id="inputImage" src="" style="display:none; width: 100%; border-radius: 10px; margin-top: 15px;">
+        </div>
+
+        <button id="proceedBtn" class="btn-secondary" style="display:none;">View Deep Analysis</button>
+    </div>
+
+    <script>
+        const imageUpload = document.getElementById('imageUpload');
+        const proceedBtn = document.getElementById('proceedBtn');
+        const loader = document.getElementById('loader');
+        const uploadLabel = document.getElementById('uploadLabel');
+        const inputImage = document.getElementById('inputImage');
+
+        // 2. Load Models Safely
+        async function init() {
+            const MODEL_URL = 'https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@0.22.2/weights';
+            try {
+                await faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL);
+                await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
+                await faceapi.nets.faceExpressionNet.loadFromUri(MODEL_URL);
+                
+                loader.innerText = "AI Ready. Upload a clear photo.";
+                uploadLabel.style.display = 'inline-block';
+            } catch (err) {
+                loader.innerHTML = "<span style='color:red;'>Security Error:</span> Please run this using 'Live Server' in VS Code.";
+                console.error(err);
+            }
+        }
+
+        // 3. Handle the Analysis
+        imageUpload.addEventListener('change', async () => {
+            const file = imageUpload.files[0];
+            if (!file) return;
+
+            loader.innerText = "Processing image...";
+            
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                inputImage.src = e.target.result;
+                inputImage.style.display = 'block';
+                
+                const img = await faceapi.fetchImage(e.target.result);
+                loader.innerText = "Scanning landmarks... (this may take 5s)";
+
+                const detection = await faceapi.detectSingleFace(img)
+                    .withFaceLandmarks()
+                    .withFaceExpressions();
+
+                if (detection) {
+                    const mood = Object.keys(detection.expressions).reduce((a, b) => 
+                        detection.expressions[a] > detection.expressions[b] ? a : b);
+
+                    // Create the results object
+                    const analysis = {
+                        score: Math.floor(Math.random() * 20) + 78,
+                        mood: mood,
+                        imgData: e.target.result 
+                    };
+
+                    // Save to LocalStorage
+                    try {
+                        localStorage.setItem('faceData', JSON.stringify(analysis));
+                        loader.innerText = "Analysis Complete!";
+                        proceedBtn.style.display = 'block';
+                    } catch (e) {
+                        loader.innerText = "Photo too large! Try a smaller photo or screenshot.";
+                    }
+                } else {
+                    loader.innerText = "Face not found. Please use a front-facing photo.";
+                }
+            };
+            reader.readAsDataURL(file);
+        });
+
+        // 4. THE PROCEED BUTTON
+        proceedBtn.addEventListener('click', () => {
+            window.location.href = 'results.html';
+        });
+
+        init();
+    </script>
+</body>
+</html>

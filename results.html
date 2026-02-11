@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Analysis Results</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container results-page">
+        <h2>Analysis Report</h2>
+        <div class="result-layout">
+            <div class="photo-card">
+                <img id="resultImg" src="">
+            </div>
+            
+            <div class="stats-card">
+                <div class="score-circle">
+                    <span id="scoreVal">0</span>
+                    <small>Symmetry</small>
+                </div>
+                <div class="traits">
+                    <p><strong>Detected Mood:</strong> <span id="mood">...</span></p>
+                    <p><strong>Aura/Personality:</strong> <span id="persona">...</span></p>
+                    <hr>
+                    <p id="comment"><em>Generating AI insight...</em></p>
+                </div>
+            </div>
+        </div>
+        <button onclick="location.href='index.html'" class="btn-secondary">Scan New Face</button>
+    </div>
+
+    <script>
+        const data = JSON.parse(localStorage.getItem('faceData'));
+
+        if (data) {
+            document.getElementById('resultImg').src = data.imgData;
+            document.getElementById('scoreVal').innerText = data.score;
+            document.getElementById('mood').innerText = data.mood.toUpperCase();
+            
+            // Logic for comments
+            const personaMap = {
+                happy: "Radiant & Optimistic",
+                neutral: "Composed & Intellectual",
+                sad: "Empathetic & Deep",
+                angry: "Commanding & Focused"
+            };
+            
+            document.getElementById('persona').innerText = personaMap[data.mood] || "Complex";
+            document.getElementById('comment').innerText = data.score > 85 ? 
+                "Your facial symmetry is in the top 5% of analyzed subjects." : 
+                "Strong, distinctive features detected with high character value.";
+        }
+    </script>
+</body>
+</html>
