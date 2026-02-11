@@ -2,178 +2,101 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Fit Check AI | Vibe Analysis</title>
-<link rel="stylesheet" href="style.css">
+<title>AI Fit Check | Rate My Drip</title>
+<style>
+  body { font-family: Arial, sans-serif; background:#f0f0f5; text-align:center; margin:0; padding:0; }
+  .container { max-width:800px; margin:50px auto; background:white; padding:20px; border-radius:15px; box-shadow:0 0 20px rgba(0,0,0,0.1);}
+  h1 { margin-bottom:10px; }
+  .upload-zone { margin:20px 0; }
+  input[type=file] { display:none; }
+  label.btn-primary { background:#0070f3; color:white; padding:10px 20px; border-radius:10px; cursor:pointer; }
+  .preview-box img { max-width:100%; margin:10px 0; border-radius:10px; border:2px solid #ccc; }
+  .results { display:flex; flex-wrap:wrap; justify-content:center; gap:20px; margin-top:20px; }
+  .fit-box { border:2px solid #ccc; padding:10px; border-radius:10px; width:300px; background:#fafafa; }
+  button { padding:8px 16px; border:none; border-radius:8px; background:#555; color:white; cursor:pointer; margin-top:10px;}
+</style>
 </head>
-
 <body>
-<div class="container fashion-page">
-    <h1>Fit Check AI <span class="tag">v2</span></h1>
-    <p id="status">Upload your outfit for AI-assisted analysis.</p>
+<div class="container">
+  <h1>AI Fit Check | Gen Z Mode</h1>
+  <p id="status">Upload one or two fits for a vibe check.</p>
 
-    <div class="upload-zone">
-        <input type="file" id="fitA" accept="image/*" hidden>
-        <label for="fitA" class="btn-primary">Upload Fit A</label>
+  <div class="upload-zone">
+    <input type="file" id="fashionUpload1" accept="image/*">
+    <label for="fashionUpload1" class="btn-primary">Upload First Fit</label>
+  </div>
 
-        <input type="file" id="fitB" accept="image/*" hidden>
-        <label for="fitB" class="btn-secondary">Upload Fit B (Optional)</label>
-    </div>
+  <div class="upload-zone">
+    <input type="file" id="fashionUpload2" accept="image/*">
+    <label for="fashionUpload2" class="btn-primary">Upload Second Fit (Optional)</label>
+  </div>
 
-    <div class="preview-box">
-        <img id="imgA" style="display:none;">
-        <img id="imgB" style="display:none;">
-    </div>
-
-    <div id="results" style="display:none;">
-        <div class="rating-display">
-            <h2 id="score">0/10</h2>
-            <p id="style"></p>
-            <p id="caption"></p>
-            <ul id="tips"></ul>
-            <p id="comparison"></p>
-        </div>
-    </div>
+  <div class="results" id="fashionResults"></div>
 </div>
 
 <script>
-const BACKEND_URL = "https://looksly.vercel.app/api/analyze";
+const BACKEND_URL = "https://looksly.vercel.app/api/analyze"; // replace with your API
+const status = document.getElementById("status");
+const fashionResults = document.getElementById("fashionResults");
 
-let fitData = {};
+async function analyzeFile(file) {
+  const formData = new FormData();
+  formData.append("file", file);
 
-async function analyzeAI(file) {
-    const formData = new FormData();
-    formData.append("file", file);
+  const res = await fetch(BACKEND_URL, { method: "POST", body: formData });
+  const data = await res.json();
+  return data;
+}
 
+function createFitBox(data, imgSrc, label) {
+  const div = document.createElement("div");
+  div.className = "fit-box";
+  div.innerHTML = `
+    <h3>${label}</h3>
+    <img src="${imgSrc}">
+    <p><strong>Fit Score:</strong> ${data.fitScore}/10</p>
+    <p><strong>Style:</strong> ${data.styleDescription}</p>
+    <p><strong>Tags:</strong> ${data.detectedLabels.join(", ") || "basic essentials"}</p>
+    <p><strong>Caption:</strong> ${data.caption}</p>
+  `;
+  return div;
+}
+
+async function handleUpload(fileInput, label) {
+  const file = fileInput.files[0];
+  if (!file) return;
+  status.innerText = `Uploading ${label} to AI...`;
+  const reader = new FileReader();
+  reader.onload = async (event) => {
+    const imgSrc = event.target.result;
+    status.innerText = `AI analyzing ${label}...`;
     try {
-        const res = await fetch(BACKEND_URL, {
-            method: "POST",
-            body: formData
-        });
-        if (!res.ok) throw new Error();
-        return await res.json();
-    } catch {
-        return null;
+      const data = await analyzeFile(file);
+      const box = createFitBox(data, imgSrc, label);
+      fashionResults.appendChild(box);
+      status.innerText = "Vibe check complete!";
+      if (fashionResults.children.length === 2) {
+        // Compare two fits
+        const score1 = fashionResults.children[0].querySelector("p strong").nextSibling.textContent.match(/\d+/)[0];
+        const score2 = fashionResults.children[1].querySelector("p strong").nextSibling.textContent.match(/\d+/)[0];
+        const winner = score1 > score2 ? "First fit wins!" : score2 > score1 ? "Second fit wins!" : "Tie!";
+        const compareDiv = document.createElement("div");
+        compareDiv.className = "fit-box";
+        compareDiv.innerHTML = `<h3>Comparison Result:</h3><p>${winner}</p>`;
+        fashionResults.appendChild(compareDiv);
+      }
+    } catch (e) {
+      console.error(e);
+      status.innerText = `Error analyzing ${label}`;
     }
+  };
+  reader.readAsDataURL(file);
 }
 
-function analyzeImage(img, tags = []) {
-    const color = getAverageRGB(img);
-    const vibe = getColorVibe(color);
+// Event listeners
+document.getElementById("fashionUpload1").addEventListener("change", () => handleUpload(document.getElementById("fashionUpload1"), "First Fit"));
+document.getElementById("fashionUpload2").addEventListener("change", () => handleUpload(document.getElementById("fashionUpload2"), "Second Fit"));
 
-    let score = vibe.score;
-    if (tags.length >= 3) score += 1;
-    score = Math.min(10, Math.max(1, score));
-
-    const style = getStyle(vibe, color);
-    const tips = getTips(vibe, tags);
-    const caption = getCaption(style, score);
-
-    return { score, style, tips, caption };
-}
-
-/* -------- UPLOAD HANDLERS -------- */
-document.getElementById("fitA").addEventListener("change", async e => {
-    await handleFit(e.target.files[0], "A");
-});
-document.getElementById("fitB").addEventListener("change", async e => {
-    await handleFit(e.target.files[0], "B");
-});
-
-async function handleFit(file, label) {
-    const reader = new FileReader();
-    reader.onload = async e => {
-        const img = new Image();
-        img.src = e.target.result;
-        img.onload = async () => {
-            document.getElementById("img"+label).src = img.src;
-            document.getElementById("img"+label).style.display = "block";
-
-            const ai = await analyzeAI(file);
-            const tags = ai ? ai.map(x => x.label.toLowerCase()) : [];
-
-            fitData[label] = analyzeImage(img, tags);
-
-            if (fitData.A) renderResults();
-        };
-    };
-    reader.readAsDataURL(file);
-}
-
-function renderResults() {
-    const A = fitData.A;
-    const B = fitData.B;
-
-    document.getElementById("score").innerText = `${A.score}/10`;
-    document.getElementById("style").innerText = `Style: ${A.style}`;
-    document.getElementById("caption").innerText = `"${A.caption}"`;
-
-    const tipsEl = document.getElementById("tips");
-    tipsEl.innerHTML = "";
-    A.tips.forEach(t => {
-        const li = document.createElement("li");
-        li.innerText = t;
-        tipsEl.appendChild(li);
-    });
-
-    if (B) {
-        document.getElementById("comparison").innerText =
-            A.score >= B.score
-            ? "Fit A wins. Cleaner execution and stronger presence."
-            : "Fit B wins. Better balance and styling choices.";
-    }
-
-    document.getElementById("results").style.display = "block";
-}
-
-/* -------- STYLE LOGIC -------- */
-function getStyle(vibe, color) {
-    if (vibe.score >= 8 && color.dark) return "Streetwear Core";
-    if (vibe.score >= 8) return "Statement Fit";
-    if (color.earthy) return "Minimal / Old Money";
-    return "Casual Clean";
-}
-
-function getTips(vibe, tags) {
-    const tips = [];
-    if (vibe.score < 7) tips.push("Increase contrast to elevate the fit.");
-    if (!tags.includes("jacket")) tips.push("Layering could add depth.");
-    if (tags.length < 2) tips.push("Consider mixing textures or pieces.");
-    return tips.length ? tips : ["Well-balanced outfit. No major changes needed."];
-}
-
-function getCaption(style, score) {
-    const captions = {
-        "Streetwear Core": ["Dark tones, louder confidence.", "Street energy activated."],
-        "Statement Fit": ["Main character energy unlocked.", "Not subtle. Intentional."],
-        "Minimal / Old Money": ["Quiet flex, loud taste.", "Clean lines, calm confidence."],
-        "Casual Clean": ["Effortless and put together.", "Simple done right."]
-    };
-    return captions[style][score % captions[style].length];
-}
-
-/* -------- COLOR -------- */
-function getAverageRGB(img) {
-    const c = document.createElement("canvas");
-    const x = c.getContext("2d");
-    c.width = c.height = 50;
-    x.drawImage(img,0,0,50,50);
-    const d = x.getImageData(0,0,50,50).data;
-    let r=0,g=0,b=0;
-    for(let i=0;i<d.length;i+=4){r+=d[i];g+=d[i+1];b+=d[i+2];}
-    r/=2500; g/=2500; b/=2500;
-    return {
-        r,g,b,
-        dark: r<80 && g<80 && b<80,
-        earthy: r>g && g>b
-    };
-}
-
-function getColorVibe(color) {
-    if (color.dark) return { score: 9 };
-    if (color.r>200 || color.g>200 || color.b>200) return { score: 8 };
-    if (color.earthy) return { score: 7 };
-    return { score: 6 };
-}
 </script>
 </body>
 </html>
